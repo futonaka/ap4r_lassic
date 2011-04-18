@@ -120,7 +120,7 @@ module ReliableMsg #:nodoc:
           start_original
 
           @dispatchers = ::Ap4r::Dispatchers.new(self, @config.dispatchers, @logger)
-          @dispatchers.start
+          @dispatchers.start @drb_server.uri
 
           @carriors = ::Ap4r::Carriers.new(self, @config.carriers, @logger, @dispatchers)
           @carriors.start

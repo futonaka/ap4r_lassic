@@ -17,6 +17,10 @@ module ReliableMsg
     # Creates a new +MultiQueue+ with target queues specified by +multi_queue+.
     # See <tt>ReliableMsg::Queue</tt> for +options+.
     def initialize multi_queue, options = nil
+      options.each do |name, value|
+        raise RuntimeError, format("Unrecognized initialization option %s", name) unless [:drb_uri].include?(name)
+        instance_variable_set "@#{name.to_s}".to_sym, value
+      end if options
       @multi_queue = multi_queue
       @options = options
     end

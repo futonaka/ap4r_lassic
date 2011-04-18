@@ -48,7 +48,8 @@ module Ap4r
       @config = config  # (typically) dispatcher section of queues.cfg
       @@logger ||= logger_obj
       raise "no configuration specified" unless @config
-      @group = ThreadGroup.new
+      #@group = ThreadGroup.new
+      @group= []
       # TODO: needs refinement 2007/05/30 by shino
       @dispatch_targets = ""
       @balancers = []
@@ -57,16 +58,20 @@ module Ap4r
     # Starts every dispatcher.
     # If an exception is detected, this method raise it through with logging.
     #
-    def start
+    def start drb_uri
       begin
         logger.info{ "about to start dispatchers with config\n#{@config.to_yaml}" }
         @config.each{ |conf|
-          balancer = ::Ap4r::Balancer.new(conf["balancer"], @@logger)
-          balancer.start
-          @balancers << balancer
-          conf["threads"].to_i.times { |index|
-            Thread.fork(@group, conf, index, balancer){|group, conf, index, balancer|
-              dispatching_loop(group, conf, index, balancer)
+          @group.push Process.fork{
+            DRb.start_service
+            balancer = ::Ap4r::Balancer.new(conf["balancer"], @@logger)
+            balancer.start
+            @balancers << balancer
+            conf["threads"].to_i.times { |index|
+              t = Thread.fork(@group, conf, index, balancer, drb_uri){|group, conf, index, balancer, drb_uri|
+                dispatching_loop(conf, index, balancer, drb_uri)
+              }
+              t.join
             }
           }
           @dispatch_targets.concat(conf["targets"]).concat(';')
@@ -88,8 +93,9 @@ module Ap4r
     def stop
       logger.info{"stop_dispatchers #{@group}"}
       return unless @group
-      @group.list.each {|d| d[:dying] = true}
-      @group.list.each {|d| d.join }
+      @group.each {|pid| Process.kill("INT", pid) }
+      #@group.list.each {|d| d[:dying] = true}
+      #@group.list.each {|d| d.join }
       @dispatch_targets = ""
       @balancers.each { |p| p.stop }
     end
@@ -106,9 +112,8 @@ module Ap4r
 
     # Defines the general structure for each dispatcher thread
     # from begging to end.
-    def dispatching_loop(group, conf, index, balancer)
-      group.add(Thread.current)
-      mq = ::ReliableMsg::MultiQueue.new(conf["targets"])
+    def dispatching_loop(conf, index, balancer, drb_uri)
+      mq = ::ReliableMsg::MultiQueue.new(conf["targets"], {:drb_uri => drb_uri})
       logger.info{ "start dispatcher: targets= #{mq}, index= #{index})" }
       until Thread.current[:dying]
         # TODO: change sleep interval depending on last result? 2007/05/09 by shino
