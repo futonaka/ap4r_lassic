@@ -145,6 +145,12 @@ module ReliableMsg #:nodoc:
         @recoverers.stop
         @carriors.stop
         @dispatchers.stop
+
+        # If using MySQL for store,
+        # MySQL::Error will be raised in stop_original.
+        # Because mysql gem which implemented by C
+        # doesn't stop appropriately when the Process is forked.
+        #
         stop_original
       end
     end

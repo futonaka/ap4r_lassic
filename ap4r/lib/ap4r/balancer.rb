@@ -125,7 +125,7 @@ module Ap4r
           if ret
             self.status = :active if self.status == :inactive
           else
-            self.status = :inactive
+            self.status = :inactive if self.status == :active
           end
           sleep 10
         end

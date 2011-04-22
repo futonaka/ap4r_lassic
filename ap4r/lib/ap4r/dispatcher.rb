@@ -48,11 +48,10 @@ module Ap4r
       @config = config  # (typically) dispatcher section of queues.cfg
       @@logger ||= logger_obj
       raise "no configuration specified" unless @config
-      #@group = ThreadGroup.new
+      @t_group = ThreadGroup.new
       @group= []
       # TODO: needs refinement 2007/05/30 by shino
       @dispatch_targets = ""
-      @balancers = []
     end
 
     # Starts every dispatcher.
@@ -66,13 +65,20 @@ module Ap4r
             DRb.start_service
             balancer = ::Ap4r::Balancer.new(conf["balancer"], @@logger)
             balancer.start
-            @balancers << balancer
+
             conf["threads"].to_i.times { |index|
-              t = Thread.fork(@group, conf, index, balancer, drb_uri){|group, conf, index, balancer, drb_uri|
+              @t_group.add Thread.fork(@group, conf, index, balancer, drb_uri){|group, conf, index, balancer, drb_uri|
                 dispatching_loop(conf, index, balancer, drb_uri)
               }
-              t.join
             }
+
+            trap "SIGINT" do
+              @t_group.list.each {|d| d[:dying] = true}
+              @t_group.list.each {|d| d.wakeup rescue nil}
+              balancer.stop
+            end
+
+            @t_group.list.each {|d| d.join }
           }
           @dispatch_targets.concat(conf["targets"]).concat(';')
           logger.debug{ "dispatch targets are : #{@dispatch_targets}" }
@@ -94,10 +100,8 @@ module Ap4r
       logger.info{"stop_dispatchers #{@group}"}
       return unless @group
       @group.each {|pid| Process.kill("INT", pid) }
-      #@group.list.each {|d| d[:dying] = true}
-      #@group.list.each {|d| d.join }
+      Process.wait2
       @dispatch_targets = ""
-      @balancers.each { |p| p.stop }
     end
 
     private
@@ -132,7 +136,7 @@ module Ap4r
                                          uri.host = host
                                          uri.port = port
                                          uri.to_s
-                                       end 
+                                       end if host && port
               logger.debug{"dispatcher get message\n#{m.to_yaml}"}
               response = get_dispather_instance(m.headers[:dispatch_mode], m, conf).call
               logger.debug{"dispatcher get response\n#{response.to_yaml}"}
