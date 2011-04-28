@@ -148,9 +148,14 @@ module ReliableMsg #:nodoc:
 
         # If using MySQL for store,
         # MySQL::Error will be raised in stop_original.
-        # Because mysql gem which implemented by C
-        # doesn't stop appropriately when the Process is forked.
-        #
+        # There are 2 APIs between Ruby and MySQL.
+        #  * MySQL/Ruby ( which implemented by C )
+        #  * Ruby/MySQL ( which implemented by Ruby )
+        # and MySQL/Ruby API doesn't stop appropriately 
+        # when the Process is forked.
+        # If use Ruby/MySQL API as substitute for MySQL/Ruby,
+        # it will stop appropriately.
+        # 
         stop_original
       end
     end

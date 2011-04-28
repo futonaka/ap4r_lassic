@@ -48,7 +48,7 @@ module Ap4r
       @config = config  # (typically) dispatcher section of queues.cfg
       @@logger ||= logger_obj
       raise "no configuration specified" unless @config
-      @t_group = ThreadGroup.new
+      @thread_group = ThreadGroup.new
       @group= []
       # TODO: needs refinement 2007/05/30 by shino
       @dispatch_targets = ""
@@ -67,18 +67,18 @@ module Ap4r
             balancer.start
 
             conf["threads"].to_i.times { |index|
-              @t_group.add Thread.fork(@group, conf, index, balancer, drb_uri){|group, conf, index, balancer, drb_uri|
+              @thread_group.add Thread.fork(@group, conf, index, balancer, drb_uri){|group, conf, index, balancer, drb_uri|
                 dispatching_loop(conf, index, balancer, drb_uri)
               }
             }
 
             trap "SIGINT" do
-              @t_group.list.each {|d| d[:dying] = true}
-              @t_group.list.each {|d| d.wakeup rescue nil}
+              @thread_group.list.each {|d| d[:dying] = true}
+              @thread_group.list.each {|d| d.wakeup rescue nil}
               balancer.stop
             end
 
-            @t_group.list.each {|d| d.join }
+            @thread_group.list.each {|d| d.join }
           }
           @dispatch_targets.concat(conf["targets"]).concat(';')
           logger.debug{ "dispatch targets are : #{@dispatch_targets}" }
@@ -117,7 +117,7 @@ module Ap4r
     # Defines the general structure for each dispatcher thread
     # from begging to end.
     def dispatching_loop(conf, index, balancer, drb_uri)
-      mq = ::ReliableMsg::MultiQueue.new(conf["targets"], {:drb_uri => drb_uri})
+      mq = ::ReliableMsg::MultiQueue.new(conf["targets"], :drb_uri => drb_uri)
       logger.info{ "start dispatcher: targets= #{mq}, index= #{index})" }
       until Thread.current[:dying]
         # TODO: change sleep interval depending on last result? 2007/05/09 by shino

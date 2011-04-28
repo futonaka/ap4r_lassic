@@ -14,11 +14,12 @@ module ReliableMsg
   # * <tt>"a.b.*"</tt> targets a collection of queues such as "a.b.c", "a.b.d", etc.
   # * <tt>"a.b.*, x.y.*"</tt> targets two collections.
   class MultiQueue < Client
+    AVAILABLE_OPTIONS = [:drb_uri]
     # Creates a new +MultiQueue+ with target queues specified by +multi_queue+.
     # See <tt>ReliableMsg::Queue</tt> for +options+.
     def initialize multi_queue, options = nil
       options.each do |name, value|
-        raise RuntimeError, format("Unrecognized initialization option %s", name) unless [:drb_uri].include?(name)
+        raise RuntimeError, format("Unrecognized initialization option %s", name) unless AVAILABLE_OPTIONS.include?(name)
         instance_variable_set "@#{name.to_s}".to_sym, value
       end if options
       @multi_queue = multi_queue
